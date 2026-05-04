@@ -2,16 +2,9 @@ const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 // Generate JWT
-const generateToken = (res, id) => {
-  const token = jwt.sign({ id }, process.env.JWT_SECRET, {
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: '30d',
-  });
-
-  res.cookie('jwt', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV !== 'development', // Use secure cookies in production
-    sameSite: 'strict', // Prevent CSRF attacks
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
   });
 };
 
@@ -34,11 +27,21 @@ const registerUser = async (req, res) => {
     });
 
     if (user) {
-      generateToken(res, user._id);
+      const token = generateToken(user._id);
+
+      // Set cookie for local development
+      res.cookie('jwt', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: process.env.NODE_ENV === 'development' ? 'strict' : 'none',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
       res.status(201).json({
         _id: user._id,
         name: user.name,
         email: user.email,
+        token, // Send token in response for cross-domain support
       });
     } else {
       res.status(400).json({ message: 'Invalid user data' });
@@ -57,11 +60,21 @@ const loginUser = async (req, res) => {
     const user = await User.findOne({ email });
 
     if (user && (await user.matchPassword(password))) {
-      generateToken(res, user._id);
+      const token = generateToken(user._id);
+
+      // Set cookie for local development
+      res.cookie('jwt', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV !== 'development',
+        sameSite: process.env.NODE_ENV === 'development' ? 'strict' : 'none',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
       res.json({
         _id: user._id,
         name: user.name,
         email: user.email,
+        token, // Send token in response for cross-domain support
       });
     } else {
       res.status(401).json({ message: 'Invalid email or password' });
